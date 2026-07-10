@@ -1,0 +1,1 @@
+- [Championsito ST 26 pot model](championsito-pot-model.md) — pots stored as a `potNumber` column on teams, not a separate Pots table.

@@ -1,0 +1,27 @@
+kind = "web"
+previewPath = "/"
+title = "Championsito ST 26"
+version = "1.0.0"
+id = "artifacts/championsito"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22546
+
+[services.development]
+run = "pnpm --filter @workspace/championsito run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/championsito", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/championsito/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22546"
+BASE_PATH = "/"

@@ -1,45 +1,42 @@
-# [Project name]
+# Championsito ST 26
 
-_Replace the heading above with the project's name, and this line with one sentence describing what this app does for users._
-
-## Run & Operate
-
-- `pnpm --filter @workspace/api-server run dev` — run the API server (port 5000)
-- `pnpm run typecheck` — full typecheck across all packages
-- `pnpm run build` — typecheck + build all packages
-- `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from the OpenAPI spec
-- `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
-- Required env: `DATABASE_URL` — Postgres connection string
+## Overview
+Web app per un gioco a pronostici basato sulla UEFA Champions League. Ogni
+partecipante sceglie 8 squadre (2 per ciascuna delle 4 fasce/pot) e
+accumula punti in base ai risultati reali delle partite, calcolati
+automaticamente lato server.
 
 ## Stack
+- Monorepo pnpm.
+- `artifacts/championsito`: frontend React + Vite + TypeScript + Tailwind
+  (shadcn/ui, wouter per il routing, zustand per lo stato di auth admin,
+  React Query via hook generati in `@workspace/api-client-react`).
+- `artifacts/api-server`: backend Express condiviso (OpenAPI-first,
+  validazione con `@workspace/api-zod`, Drizzle ORM su Postgres).
+- Schema DB in `lib/db/src/schema/`: `teams` (con `potNumber` 1-4 invece di
+  una tabella `Pots` separata), `participants`, `participant_teams`
+  (join), `matches`.
 
-- pnpm workspaces, Node.js 24, TypeScript 5.9
-- API: Express 5
-- DB: PostgreSQL + Drizzle ORM
-- Validation: Zod (`zod/v4`), `drizzle-zod`
-- API codegen: Orval (from OpenAPI spec)
-- Build: esbuild (CJS bundle)
+## Punteggio
+Punti per fascia in caso di vittoria/pareggio/sconfitta:
+- Fascia 1: 2/1/0, Fascia 2: 4/2/0, Fascia 3: 6/3/0, Fascia 4: 8/4/0.
+Calcolato server-side (`artifacts/api-server/src/lib/{scoring,gameData}.ts`)
+a partire dai match registrati; nessun punteggio salvato in colonna, sempre
+derivato al volo.
 
-## Where things live
+## Autenticazione admin
+Password condivisa (secret `ADMIN_PASSWORD`). Login su `POST /api/auth/login`
+restituisce un token HMAC firmato con `SESSION_SECRET` (stateless, 12h di
+validità, vedi `artifacts/api-server/src/lib/adminAuth.ts`). Il frontend
+salva il token e lo registra con `setAuthTokenGetter` di
+`@workspace/api-client-react` così le mutation admin includono
+automaticamente l'header Authorization.
 
-_Populate as you build — short repo map plus pointers to the source-of-truth file for DB schema, API contracts, theme files, etc._
-
-## Architecture decisions
-
-_Populate as you build — non-obvious choices a reader couldn't infer from the code (3-5 bullets)._
-
-## Product
-
-_Describe the high-level user-facing capabilities of this app once they exist._
+## Dati di esempio
+`pnpm --filter @workspace/scripts run seed:championsito` popola squadre
+reali di Champions League 2025/26 per fascia, alcuni partecipanti e match
+di esempio (esegue solo se il DB è vuoto).
 
 ## User preferences
-
-_Populate as you build — explicit user instructions worth remembering across sessions._
-
-## Gotchas
-
-_Populate as you build — sharp edges, "always run X before Y" rules._
-
-## Pointers
-
-- See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details
+Nessuna preferenza esplicita registrata finora oltre ai requisiti del
+progetto (tema scuro blu/viola stile Champions League, niente emoji).

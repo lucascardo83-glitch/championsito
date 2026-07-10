@@ -3,13 +3,25 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Championsito ST 26 API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: auth
+    description: Admin authentication
+  - name: teams
+    description: Teams and pots (fasce) management
+  - name: participants
+    description: Participants and their team selections
+  - name: matches
+    description: Match results
+  - name: standings
+    description: Ranking and summary
+  - name: backup
+    description: Data export
 paths:
   /healthz:
     get:
@@ -24,7 +36,369 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/login:
+    post:
+      operationId: adminLogin
+      tags: [auth]
+      summary: Admin login
+      description: Exchanges the admin password for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginInput"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResult"
+        "401":
+          description: Invalid password
+
+  /summary:
+    get:
+      operationId: getSummary
+      tags: [standings]
+      summary: Home page summary
+      description: Aggregate counts used on the home page
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+
+  /standings:
+    get:
+      operationId: getStandings
+      tags: [standings]
+      summary: Ranking ordered by score descending
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StandingEntry"
+
+  /teams:
+    get:
+      operationId: listTeams
+      tags: [teams]
+      summary: List all teams grouped by pot
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Team"
+    post:
+      operationId: createTeam
+      tags: [teams]
+      summary: Create a team (admin only)
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        "401":
+          description: Unauthorized
+
+  /teams/{id}:
+    patch:
+      operationId: updateTeam
+      tags: [teams]
+      summary: Update a team (admin only)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TeamUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Team"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteTeam
+      tags: [teams]
+      summary: Delete a team (admin only)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /participants:
+    get:
+      operationId: listParticipants
+      tags: [participants]
+      summary: List all participants (name search supported)
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ParticipantSummary"
+    post:
+      operationId: createParticipant
+      tags: [participants]
+      summary: Create a participant with 8 team picks (admin only)
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParticipantDetail"
+        "400":
+          description: Invalid team selection
+        "401":
+          description: Unauthorized
+
+  /participants/{id}:
+    get:
+      operationId: getParticipant
+      tags: [participants]
+      summary: Get participant detail with teams, pots and scores
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParticipantDetail"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateParticipant
+      tags: [participants]
+      summary: Update a participant's name and/or team picks (admin only)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParticipantUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParticipantDetail"
+        "400":
+          description: Invalid team selection
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteParticipant
+      tags: [participants]
+      summary: Delete a participant (admin only)
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /matches:
+    get:
+      operationId: listMatches
+      tags: [matches]
+      summary: List all recorded matches, most recent first
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Match"
+    post:
+      operationId: createMatch
+      tags: [matches]
+      summary: Record a match result (admin only). Scores are computed automatically.
+      security:
+        - adminAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+
+  /matches/{id}:
+    patch:
+      operationId: updateMatch
+      tags: [matches]
+      summary: Update a match result (admin only). Scores are recomputed automatically.
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MatchUpdate"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Match"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteMatch
+      tags: [matches]
+      summary: Delete a match result (admin only). Scores are recomputed automatically.
+      security:
+        - adminAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
+  /backup/export:
+    get:
+      operationId: exportBackup
+      tags: [backup]
+      summary: Export a full JSON backup of all data (admin only)
+      security:
+        - adminAuth: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BackupData"
+        "401":
+          description: Unauthorized
+
 components:
+  securitySchemes:
+    adminAuth:
+      type: http
+      scheme: bearer
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +408,220 @@ components:
       required:
         - status
 
+    LoginInput:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+
+    LoginResult:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+
+    Summary:
+      type: object
+      required: [appName, participantsCount, matchesPlayed, leaderName, leaderScore, updatedAt]
+      properties:
+        appName:
+          type: string
+        participantsCount:
+          type: integer
+        matchesPlayed:
+          type: integer
+        leaderName:
+          type: ["string", "null"]
+        leaderScore:
+          type: ["integer", "null"]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+
+    StandingEntry:
+      type: object
+      required: [position, participantId, name, totalScore]
+      properties:
+        position:
+          type: integer
+        participantId:
+          type: integer
+        name:
+          type: string
+        totalScore:
+          type: integer
+
+    Team:
+      type: object
+      required: [id, name, potNumber]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        potNumber:
+          type: integer
+          minimum: 1
+          maximum: 4
+
+    TeamInput:
+      type: object
+      required: [name, potNumber]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        potNumber:
+          type: integer
+          minimum: 1
+          maximum: 4
+
+    TeamUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        potNumber:
+          type: integer
+          minimum: 1
+          maximum: 4
+
+    ParticipantSummary:
+      type: object
+      required: [id, name, totalScore]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        totalScore:
+          type: integer
+
+    ParticipantTeamDetail:
+      type: object
+      required: [teamId, teamName, potNumber, points]
+      properties:
+        teamId:
+          type: integer
+        teamName:
+          type: string
+        potNumber:
+          type: integer
+        points:
+          type: integer
+
+    ParticipantDetail:
+      type: object
+      required: [id, name, totalScore, teams]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        totalScore:
+          type: integer
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParticipantTeamDetail"
+
+    ParticipantInput:
+      type: object
+      required: [name, teamIds]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        teamIds:
+          type: array
+          items:
+            type: integer
+          minItems: 8
+          maxItems: 8
+
+    ParticipantUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        teamIds:
+          type: array
+          items:
+            type: integer
+          minItems: 8
+          maxItems: 8
+
+    Match:
+      type: object
+      required: [id, homeTeamId, homeTeamName, awayTeamId, awayTeamName, homeGoals, awayGoals, playedAt]
+      properties:
+        id:
+          type: integer
+        homeTeamId:
+          type: integer
+        homeTeamName:
+          type: string
+        awayTeamId:
+          type: integer
+        awayTeamName:
+          type: string
+        homeGoals:
+          type: integer
+        awayGoals:
+          type: integer
+        playedAt:
+          type: string
+          format: date-time
+
+    MatchInput:
+      type: object
+      required: [homeTeamId, awayTeamId, homeGoals, awayGoals]
+      properties:
+        homeTeamId:
+          type: integer
+        awayTeamId:
+          type: integer
+        homeGoals:
+          type: integer
+          minimum: 0
+        awayGoals:
+          type: integer
+          minimum: 0
+
+    MatchUpdate:
+      type: object
+      properties:
+        homeTeamId:
+          type: integer
+        awayTeamId:
+          type: integer
+        homeGoals:
+          type: integer
+          minimum: 0
+        awayGoals:
+          type: integer
+          minimum: 0
+
+    BackupData:
+      type: object
+      required: [exportedAt, teams, participants, matches]
+      properties:
+        exportedAt:
+          type: string
+          format: date-time
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/Team"
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParticipantDetail"
+        matches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Match"
