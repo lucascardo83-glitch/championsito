@@ -14,4 +14,6 @@ export interface Team {
      * @maximum 4
      */
   potNumber: number;
+  /** True for the team that won the tournament. Anyone who picked this team receives an automatic +5 point bonus. */
+  isChampion: boolean;
 }

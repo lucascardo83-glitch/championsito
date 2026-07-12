@@ -44,6 +44,8 @@ export interface Team {
      * @maximum 4
      */
   potNumber: number;
+  /** True for the team that won the tournament. Anyone who picked this team receives an automatic +5 point bonus. */
+  isChampion: boolean;
 }
 
 export interface TeamInput {
@@ -54,6 +56,7 @@ export interface TeamInput {
      * @maximum 4
      */
   potNumber: number;
+  isChampion?: boolean;
 }
 
 export interface TeamUpdate {
@@ -64,6 +67,8 @@ export interface TeamUpdate {
      * @maximum 4
      */
   potNumber?: number;
+  /** Set to true to mark this team as champion (clears the flag on any previously-crowned team). Set to false to remove the designation. */
+  isChampion?: boolean;
 }
 
 export interface ParticipantSummary {

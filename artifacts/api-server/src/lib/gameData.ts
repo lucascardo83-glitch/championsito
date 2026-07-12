@@ -15,9 +15,14 @@ export interface ParticipantWithTeams {
   teams: TeamWithPoints[];
 }
 
+/** Extra points awarded to participants who picked the champion team. */
+export const CHAMPION_BONUS = 5;
+
 /**
  * Computes each team's total points earned so far from recorded matches,
  * based on the pot ("fascia") the team belongs to.
+ * If a team is flagged as champion, it also receives a one-time
+ * CHAMPION_BONUS point bonus on top of its match points.
  */
 export async function computeTeamPoints(): Promise<Map<number, number>> {
   const [teams, matches] = await Promise.all([
@@ -25,26 +30,28 @@ export async function computeTeamPoints(): Promise<Map<number, number>> {
     db.select().from(matchesTable),
   ]);
 
-  const potByTeamId = new Map(teams.map((team) => [team.id, team.potNumber]));
-  const pointsByTeamId = new Map<number, number>(teams.map((team) => [team.id, 0]));
+  const teamMetaById = new Map(teams.map((team) => [team.id, team]));
+  const pointsByTeamId = new Map<number, number>(
+    teams.map((team) => [team.id, team.isChampion ? CHAMPION_BONUS : 0]),
+  );
 
   for (const match of matches) {
-    const homePot = potByTeamId.get(match.homeTeamId);
-    const awayPot = potByTeamId.get(match.awayTeamId);
+    const homeMeta = teamMetaById.get(match.homeTeamId);
+    const awayMeta = teamMetaById.get(match.awayTeamId);
 
-    if (homePot !== undefined) {
+    if (homeMeta !== undefined) {
       const outcome = outcomeFor(match.homeGoals, match.awayGoals);
       pointsByTeamId.set(
         match.homeTeamId,
-        (pointsByTeamId.get(match.homeTeamId) ?? 0) + pointsForOutcome(homePot, outcome),
+        (pointsByTeamId.get(match.homeTeamId) ?? 0) + pointsForOutcome(homeMeta.potNumber, outcome),
       );
     }
 
-    if (awayPot !== undefined) {
+    if (awayMeta !== undefined) {
       const outcome = outcomeFor(match.awayGoals, match.homeGoals);
       pointsByTeamId.set(
         match.awayTeamId,
-        (pointsByTeamId.get(match.awayTeamId) ?? 0) + pointsForOutcome(awayPot, outcome),
+        (pointsByTeamId.get(match.awayTeamId) ?? 0) + pointsForOutcome(awayMeta.potNumber, outcome),
       );
     }
   }

@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq } from "drizzle-orm";
+import { eq, ne } from "drizzle-orm";
 import { db, teamsTable } from "@workspace/db";
 import {
   CreateTeamBody,
@@ -41,6 +41,15 @@ router.patch("/teams/:id", requireAdmin, async (req, res): Promise<void> => {
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
+  }
+
+  // If isChampion is being set to true, clear it on all other teams first
+  // so only one team can be champion at a time.
+  if (parsed.data.isChampion === true) {
+    await db
+      .update(teamsTable)
+      .set({ isChampion: false })
+      .where(ne(teamsTable.id, params.data.id));
   }
 
   const [team] = await db

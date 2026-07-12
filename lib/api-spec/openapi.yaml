@@ -455,7 +455,7 @@ components:
 
     Team:
       type: object
-      required: [id, name, potNumber]
+      required: [id, name, potNumber, isChampion]
       properties:
         id:
           type: integer
@@ -465,6 +465,11 @@ components:
           type: integer
           minimum: 1
           maximum: 4
+        isChampion:
+          type: boolean
+          description: >
+            True for the team that won the tournament. Anyone who picked this
+            team receives an automatic +5 point bonus.
 
     TeamInput:
       type: object
@@ -477,6 +482,8 @@ components:
           type: integer
           minimum: 1
           maximum: 4
+        isChampion:
+          type: boolean
 
     TeamUpdate:
       type: object
@@ -488,6 +495,11 @@ components:
           type: integer
           minimum: 1
           maximum: 4
+        isChampion:
+          type: boolean
+          description: >
+            Set to true to mark this team as champion (clears the flag on any
+            previously-crowned team). Set to false to remove the designation.
 
     ParticipantSummary:
       type: object

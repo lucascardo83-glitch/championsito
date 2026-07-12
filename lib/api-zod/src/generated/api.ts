@@ -66,7 +66,8 @@ export const listTeamsResponsePotNumberMax = 4;
 export const ListTeamsResponseItem = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "potNumber": zod.number().min(1).max(listTeamsResponsePotNumberMax)
+  "potNumber": zod.number().min(1).max(listTeamsResponsePotNumberMax),
+  "isChampion": zod.boolean().describe('True for the team that won the tournament. Anyone who picked this team receives an automatic +5 point bonus.\n')
 })
 export const ListTeamsResponse = zod.array(ListTeamsResponseItem)
 
@@ -81,7 +82,8 @@ export const createTeamBodyPotNumberMax = 4;
 
 export const CreateTeamBody = zod.object({
   "name": zod.string().min(1),
-  "potNumber": zod.number().min(1).max(createTeamBodyPotNumberMax)
+  "potNumber": zod.number().min(1).max(createTeamBodyPotNumberMax),
+  "isChampion": zod.boolean().optional()
 })
 
 export const createTeamResponsePotNumberMax = 4;
@@ -91,7 +93,8 @@ export const createTeamResponsePotNumberMax = 4;
 export const CreateTeamResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "potNumber": zod.number().min(1).max(createTeamResponsePotNumberMax)
+  "potNumber": zod.number().min(1).max(createTeamResponsePotNumberMax),
+  "isChampion": zod.boolean().describe('True for the team that won the tournament. Anyone who picked this team receives an automatic +5 point bonus.\n')
 })
 
 
@@ -109,7 +112,8 @@ export const updateTeamBodyPotNumberMax = 4;
 
 export const UpdateTeamBody = zod.object({
   "name": zod.string().min(1).optional(),
-  "potNumber": zod.number().min(1).max(updateTeamBodyPotNumberMax).optional()
+  "potNumber": zod.number().min(1).max(updateTeamBodyPotNumberMax).optional(),
+  "isChampion": zod.boolean().optional().describe('Set to true to mark this team as champion (clears the flag on any previously-crowned team). Set to false to remove the designation.\n')
 })
 
 export const updateTeamResponsePotNumberMax = 4;
@@ -119,7 +123,8 @@ export const updateTeamResponsePotNumberMax = 4;
 export const UpdateTeamResponse = zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "potNumber": zod.number().min(1).max(updateTeamResponsePotNumberMax)
+  "potNumber": zod.number().min(1).max(updateTeamResponsePotNumberMax),
+  "isChampion": zod.boolean().describe('True for the team that won the tournament. Anyone who picked this team receives an automatic +5 point bonus.\n')
 })
 
 
@@ -334,7 +339,8 @@ export const ExportBackupResponse = zod.object({
   "teams": zod.array(zod.object({
   "id": zod.number(),
   "name": zod.string(),
-  "potNumber": zod.number().min(1).max(exportBackupResponseTeamsItemPotNumberMax)
+  "potNumber": zod.number().min(1).max(exportBackupResponseTeamsItemPotNumberMax),
+  "isChampion": zod.boolean().describe('True for the team that won the tournament. Anyone who picked this team receives an automatic +5 point bonus.\n')
 })),
   "participants": zod.array(zod.object({
   "id": zod.number(),

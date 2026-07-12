@@ -14,4 +14,5 @@ export interface TeamInput {
      * @maximum 4
      */
   potNumber: number;
+  isChampion?: boolean;
 }

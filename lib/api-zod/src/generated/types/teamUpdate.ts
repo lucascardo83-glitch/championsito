@@ -14,4 +14,6 @@ export interface TeamUpdate {
      * @maximum 4
      */
   potNumber?: number;
+  /** Set to true to mark this team as champion (clears the flag on any previously-crowned team). Set to false to remove the designation. */
+  isChampion?: boolean;
 }
