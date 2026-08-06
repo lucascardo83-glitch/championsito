@@ -1,1 +1,1 @@
-{"buildCommand": "BASE_PATH=/ PORT=3000 npx vite build", "outputDirectory": "dist"}
+{"outputDirectory": "dist/public"}
