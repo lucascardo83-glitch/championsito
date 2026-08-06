@@ -1,1 +1,0 @@
-{"installCommand": "cd artifacts/championsito && npm install", "buildCommand": "cd artifacts/championsito && npm run build", "outputDirectory": "artifacts/championsito/dist"}
