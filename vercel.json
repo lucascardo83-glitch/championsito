@@ -1,1 +1,1 @@
-{"framework": "vite", "rootDirectory": "artifacts/championsito"}
+{"buildCommand": "cd artifacts/championsito && npx vite build", "outputDirectory": "artifacts/championsito/dist"}
