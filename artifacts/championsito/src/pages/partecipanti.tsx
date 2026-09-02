@@ -1,155 +1,113 @@
 import { useState, useEffect } from 'react';
-import { useListParticipants, useGetParticipant, getGetParticipantQueryKey } from '@workspace/api-client-react';
-import { Search, Users, Trophy, ChevronRight, Loader2 } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { supabase } from '@/lib/supabase';
+import { Users, Loader2 } from 'lucide-react';
 
-function ParticipantModal({ 
-  participantId, 
-  isOpen, 
-  onClose 
-}: { 
-  participantId: number | null; 
-  isOpen: boolean; 
-  onClose: () => void;
-}) {
-  const { data: participant, isLoading } = useGetParticipant(participantId as number, { 
-    query: {
-      enabled: !!participantId && isOpen,
-      queryKey: getGetParticipantQueryKey(participantId as number),
-    },
-  });
+interface Team {
+  id: number;
+  name: string;
+  tier: number;
+  points: number;
+}
+
+interface ParticipantWithTeams {
+  id: number;
+  name: string;
+  teams: Team[];
+  totalPoints: number;
+}
+
+export default function PartecipantiPage() {
+  const [participants, setParticipants] = useState<ParticipantWithTeams[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      setLoading(true);
+
+      // Recupera squadre, partite, partecipanti e associazioni da Supabase
+      const { data: teamsData } = await supabase.from('teams').select('*').order('tier').order('name');
+      const { data: matchesData } = await supabase.from('matches').select('*');
+      const { data: participantsData } = await supabase.from('participants').select('*').order('name');
+      const { data: linksData } = await supabase.from('participant_teams').select('*');
+
+      // Calcola i punti guadagnati da ciascuna squadra
+      const teamsWithPoints = (teamsData || []).map((t) => {
+        let pts = 0;
+        (matchesData || []).forEach((m) => {
+          if (m.home_team_id === t.id) {
+            if (m.home_goals > m.away_goals) pts += t.tier * 2;
+            else if (m.home_goals === m.away_goals) pts += t.tier;
+          } else if (m.away_team_id === t.id) {
+            if (m.away_goals > m.home_goals) pts += t.tier * 2;
+            else if (m.home_goals === m.away_goals) pts += t.tier;
+          }
+        });
+        return { ...t, points: pts };
+      });
+
+      // Associa le squadre e calcola il totale per ogni partecipante
+      if (participantsData) {
+        const formatted = participantsData.map((p) => {
+          const pTeamIds = linksData?.filter((l) => l.participant_id === p.id).map((l) => l.team_id) || [];
+          const pTeams = teamsWithPoints.filter((t) => pTeamIds.includes(t.id));
+          const totalPoints = pTeams.reduce((sum, t) => sum + t.points, 0);
+
+          return { id: p.id, name: p.name, teams: pTeams, totalPoints };
+        });
+        setParticipants(formatted);
+      }
+
+      setLoading(false);
+    }
+
+    fetchData();
+  }, []);
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl bg-card border-white/10 text-foreground">
-        <DialogHeader className="border-b border-white/10 pb-4">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-            {isLoading || !participant ? (
-              <span className="h-8 w-48 bg-white/10 rounded animate-pulse inline-block" />
-            ) : (
-              <>
-                <Users className="text-primary h-6 w-6" />
-                {participant.name}
-              </>
-            )}
-          </DialogTitle>
-        </DialogHeader>
-        
-        <div className="py-4">
-          {isLoading || !participant ? (
-            <div className="flex justify-center p-12">
-              <Loader2 className="h-10 w-10 animate-spin text-primary" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center bg-primary/10 p-4 rounded-xl border border-primary/20">
-                <span className="text-muted-foreground font-medium">Punteggio Totale</span>
-                <span className="text-3xl font-extrabold text-primary">{participant.totalScore}</span>
+    <div className="container mx-auto px-4 py-8 max-w-5xl space-y-8">
+      <div className="flex items-center gap-3">
+        <Users className="h-8 w-8 text-primary" />
+        <h1 className="text-3xl font-bold tracking-tight">Tutti i Partecipanti</h1>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center p-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      ) : participants.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground border border-dashed border-white/10 rounded-xl">
+          Nessun partecipante registrato.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {participants.map((p) => (
+            <div key={p.id} className="glass-card p-6 rounded-2xl space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">{p.name}</h2>
+                <span className="text-sm font-bold bg-primary/20 text-primary border border-primary/30 px-3 py-1 rounded-full">
+                  Totale: {p.totalPoints} pts
+                </span>
               </div>
-              
               <div>
-                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Trophy className="h-5 w-5 text-muted-foreground" />
-                  Squadre Selezionate
-                </h3>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {participant.teams.sort((a, b) => a.potNumber - b.potNumber).map((team) => (
-                    <div 
-                      key={team.teamId} 
-                      className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-bold">{team.teamName}</span>
-                        <span className="text-xs text-muted-foreground">Fascia {team.potNumber}</span>
-                      </div>
-                      <div className="bg-primary/20 text-primary px-3 py-1 rounded-md font-bold text-sm">
-                        {team.points} pts
-                      </div>
-                    </div>
-                  ))}
+                <p className="text-xs font-semibold text-muted-foreground mb-2">Squadre Scelte ({p.teams.length}/8):</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {p.teams.length > 0 ? (
+                    p.teams.map((t) => (
+                      <span key={t.id} className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                        <span>{t.name}</span>
+                        <span className="opacity-50 text-[10px]">(F{t.tier})</span>
+                        <span className="text-primary font-bold ml-1">+{t.points}</span>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Nessuna squadra assegnata</span>
+                  )}
                 </div>
               </div>
             </div>
-          )}
+          ))}
         </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-export default function Partecipanti() {
-  const [search, setSearch] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-
-  // Debounce search
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedSearch(search), 300);
-    return () => clearTimeout(timer);
-  }, [search]);
-
-  const { data: participants, isLoading } = useListParticipants({ search: debouncedSearch });
-
-  return (
-    <div className="container mx-auto px-4 py-8 md:py-12 space-y-8 max-w-5xl">
-      <div className="text-center space-y-4 mb-8">
-        <div className="inline-flex items-center justify-center p-4 bg-primary/20 rounded-full mb-2">
-          <Users className="h-12 w-12 text-primary" />
-        </div>
-        <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight">Partecipanti</h1>
-        <p className="text-lg text-muted-foreground">
-          Cerca i giocatori e scopri le loro squadre.
-        </p>
-      </div>
-
-      <div className="relative max-w-xl mx-auto mb-10">
-        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-          <Search className="h-5 w-5 text-muted-foreground" />
-        </div>
-        <input
-          type="search"
-          className="w-full pl-12 pr-4 py-4 bg-card/60 backdrop-blur-md border border-white/20 rounded-2xl text-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all placeholder:text-muted-foreground/50"
-          placeholder="Cerca per nome..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {isLoading ? (
-          Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="glass-card p-6 rounded-xl animate-pulse">
-              <div className="h-6 w-3/4 bg-white/10 rounded mb-4" />
-              <div className="h-4 w-1/4 bg-white/10 rounded" />
-            </div>
-          ))
-        ) : participants?.length === 0 ? (
-          <div className="col-span-full text-center py-12 text-muted-foreground text-lg glass-card rounded-2xl">
-            Nessun partecipante trovato.
-          </div>
-        ) : (
-          participants?.map((p) => (
-            <button
-              key={p.id}
-              onClick={() => setSelectedId(p.id)}
-              className="glass-card p-6 rounded-xl flex items-center justify-between text-left hover:bg-white/10 transition-all hover:scale-[1.02] active:scale-95 group"
-            >
-              <div>
-                <h3 className="font-bold text-xl mb-1 group-hover:text-primary transition-colors">{p.name}</h3>
-                <span className="text-muted-foreground text-sm font-medium">{p.totalScore} punti</span>
-              </div>
-              <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
-            </button>
-          ))
-        )}
-      </div>
-
-      <ParticipantModal 
-        participantId={selectedId} 
-        isOpen={selectedId !== null} 
-        onClose={() => setSelectedId(null)} 
-      />
+      )}
     </div>
   );
 }
