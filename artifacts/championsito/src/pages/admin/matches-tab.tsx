@@ -1,14 +1,5 @@
-import { useState } from 'react';
-import { 
-  useListMatches, 
-  useCreateMatch, 
-  useUpdateMatch, 
-  useDeleteMatch, 
-  getListMatchesQueryKey,
-  useListTeams,
-  Match
-} from '@workspace/api-client-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -16,24 +7,66 @@ import { Loader2, Plus, Pencil, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 
+interface Team {
+  id: number;
+  name: string;
+  tier: number;
+}
+
+interface Match {
+  id: number;
+  home_team_id: number;
+  away_team_id: number;
+  home_goals: number;
+  away_goals: number;
+  homeTeamName?: string;
+  awayTeamName?: string;
+}
+
 export function MatchesTab() {
-  const { data: matches, isLoading } = useListMatches();
-  const { data: teams } = useListTeams();
-  const queryClient = useQueryClient();
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  
-  const createMatch = useCreateMatch();
-  const updateMatch = useUpdateMatch();
-  const deleteMatch = useDeleteMatch();
 
   const [isOpen, setIsOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [editingMatch, setEditingMatch] = useState<Match | null>(null);
-  
+
   const [homeTeamId, setHomeTeamId] = useState<string>('');
   const [awayTeamId, setAwayTeamId] = useState<string>('');
   const [homeGoals, setHomeGoals] = useState<string>('0');
   const [awayGoals, setAwayGoals] = useState<string>('0');
+
+  // Carica squadre e partite da Supabase
+  const fetchData = async () => {
+    setIsLoading(true);
+    
+    // 1. Fetch Teams
+    const { data: teamsData } = await supabase.from('teams').select('*').order('name');
+    const loadedTeams = teamsData || [];
+    setTeams(loadedTeams);
+
+    // 2. Fetch Matches
+    const { data: matchesData } = await supabase.from('matches').select('*').order('id', { ascending: false });
+    
+    if (matchesData) {
+      // Mappa i nomi delle squadre direttamente nelle partite
+      const formattedMatches = matchesData.map((m: Match) => ({
+        ...m,
+        homeTeamName: loadedTeams.find((t) => t.id === m.home_team_id)?.name || 'Squadra sconosciuta',
+        awayTeamName: loadedTeams.find((t) => t.id === m.away_team_id)?.name || 'Squadra sconosciuta',
+      }));
+      setMatches(formattedMatches);
+    }
+    
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
 
   const openCreate = () => {
     setEditingMatch(null);
@@ -46,72 +79,66 @@ export function MatchesTab() {
 
   const openEdit = (match: Match) => {
     setEditingMatch(match);
-    setHomeTeamId(match.homeTeamId.toString());
-    setAwayTeamId(match.awayTeamId.toString());
-    setHomeGoals(match.homeGoals.toString());
-    setAwayGoals(match.awayGoals.toString());
+    setHomeTeamId(match.home_team_id.toString());
+    setAwayTeamId(match.away_team_id.toString());
+    setHomeGoals(match.home_goals.toString());
+    setAwayGoals(match.away_goals.toString());
     setIsOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!homeTeamId || !awayTeamId || homeTeamId === awayTeamId) {
       toast({ title: 'Errore', description: 'Seleziona due squadre diverse', variant: 'destructive' });
       return;
     }
-    
+
+    setIsSubmitting(true);
+
+    const payload = {
+      home_team_id: Number(homeTeamId),
+      away_team_id: Number(awayTeamId),
+      home_goals: Number(homeGoals),
+      away_goals: Number(awayGoals),
+    };
+
     if (editingMatch) {
-      updateMatch.mutate({ 
-        id: editingMatch.id, 
-        data: { 
-          homeTeamId: Number(homeTeamId), 
-          awayTeamId: Number(awayTeamId),
-          homeGoals: Number(homeGoals),
-          awayGoals: Number(awayGoals)
-        } 
-      }, {
-        onSuccess: () => {
-          toast({ title: 'Risultato aggiornato' });
-          queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-          // Invalidate standings and summary since points changed
-          queryClient.invalidateQueries({ queryKey: ['/api/standings'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/participants'] });
-          setIsOpen(false);
-        }
-      });
+      const { error } = await supabase.from('matches').update(payload).eq('id', editingMatch.id);
+      if (error) {
+        toast({ title: 'Errore', description: 'Aggiornamento non riuscito', variant: 'destructive' });
+      } else {
+        toast({ title: 'Risultato aggiornato' });
+        fetchData();
+        setIsOpen(false);
+      }
     } else {
-      createMatch.mutate({ 
-        data: { 
-          homeTeamId: Number(homeTeamId), 
-          awayTeamId: Number(awayTeamId),
-          homeGoals: Number(homeGoals),
-          awayGoals: Number(awayGoals)
-        } 
-      }, {
-        onSuccess: () => {
-          toast({ title: 'Risultato inserito' });
-          queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-          queryClient.invalidateQueries({ queryKey: ['/api/standings'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
-          queryClient.invalidateQueries({ queryKey: ['/api/participants'] });
-          setIsOpen(false);
-        }
-      });
+      const { error } = await supabase.from('matches').insert([payload]);
+      if (error) {
+        toast({ title: 'Errore', description: 'Inserimento non riuscito', variant: 'destructive' });
+      } else {
+        toast({ title: 'Risultato inserito' });
+        fetchData();
+        setIsOpen(false);
+      }
     }
+
+    setIsSubmitting(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!editingMatch) return;
-    deleteMatch.mutate({ id: editingMatch.id }, {
-      onSuccess: () => {
-        toast({ title: 'Risultato eliminato' });
-        queryClient.invalidateQueries({ queryKey: getListMatchesQueryKey() });
-        queryClient.invalidateQueries({ queryKey: ['/api/standings'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/summary'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/participants'] });
-        setIsDeleteOpen(false);
-      }
-    });
+    setIsSubmitting(true);
+
+    const { error } = await supabase.from('matches').delete().eq('id', editingMatch.id);
+
+    if (error) {
+      toast({ title: 'Errore', description: 'Eliminazione non riuscita', variant: 'destructive' });
+    } else {
+      toast({ title: 'Risultato eliminato' });
+      fetchData();
+      setIsDeleteOpen(false);
+    }
+
+    setIsSubmitting(false);
   };
 
   return (
@@ -127,18 +154,18 @@ export function MatchesTab() {
         <div className="flex justify-center p-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      ) : matches?.length === 0 ? (
+      ) : matches.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground border border-dashed border-white/10 rounded-xl">
           Nessuna partita registrata.
         </div>
       ) : (
         <div className="grid gap-3 grid-cols-1 md:grid-cols-2">
-          {matches?.map(match => (
+          {matches.map((match) => (
             <div key={match.id} className="flex items-center justify-between bg-white/5 p-4 rounded-xl border border-white/5 hover:border-white/20 transition-all">
               <div className="flex-1 flex items-center justify-center gap-4">
                 <span className="font-bold flex-1 text-right truncate">{match.homeTeamName}</span>
                 <div className="bg-primary/20 px-3 py-1.5 rounded-lg font-bold text-xl min-w-[70px] text-center border border-primary/30">
-                  {match.homeGoals} - {match.awayGoals}
+                  {match.home_goals} - {match.away_goals}
                 </div>
                 <span className="font-bold flex-1 text-left truncate">{match.awayTeamName}</span>
               </div>
@@ -161,7 +188,6 @@ export function MatchesTab() {
             <DialogTitle>{editingMatch ? 'Modifica Risultato' : 'Inserisci Risultato'}</DialogTitle>
           </DialogHeader>
           <div className="space-y-6 py-4">
-            
             <div className="flex items-center justify-between gap-4">
               <div className="flex-1 space-y-2">
                 <label className="text-sm font-medium text-center block">Squadra Casa</label>
@@ -170,15 +196,15 @@ export function MatchesTab() {
                     <SelectValue placeholder="Seleziona" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teams?.map(t => (
+                    {teams.map((t) => (
                       <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Input 
-                  type="number" 
-                  min="0" 
-                  value={homeGoals} 
+                <Input
+                  type="number"
+                  min="0"
+                  value={homeGoals}
                   onChange={(e) => setHomeGoals(e.target.value)}
                   className="text-center text-2xl font-bold h-14 bg-background/50 border-white/20"
                 />
@@ -193,29 +219,28 @@ export function MatchesTab() {
                     <SelectValue placeholder="Seleziona" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teams?.map(t => (
+                    {teams.map((t) => (
                       <SelectItem key={t.id} value={t.id.toString()}>{t.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <Input 
-                  type="number" 
-                  min="0" 
-                  value={awayGoals} 
+                <Input
+                  type="number"
+                  min="0"
+                  value={awayGoals}
                   onChange={(e) => setAwayGoals(e.target.value)}
                   className="text-center text-2xl font-bold h-14 bg-background/50 border-white/20"
                 />
               </div>
             </div>
-
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsOpen(false)}>Annulla</Button>
-            <Button 
-              onClick={handleSave} 
-              disabled={createMatch.isPending || updateMatch.isPending || !homeTeamId || !awayTeamId || homeTeamId === awayTeamId}
+            <Button
+              onClick={handleSave}
+              disabled={isSubmitting || !homeTeamId || !awayTeamId || homeTeamId === awayTeamId}
             >
-              {(createMatch.isPending || updateMatch.isPending) ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salva Risultato'}
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Salva Risultato'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -226,13 +251,13 @@ export function MatchesTab() {
           <DialogHeader>
             <DialogTitle>Elimina Risultato</DialogTitle>
             <DialogDescription>
-              Sei sicuro di voler eliminare questa partita? I punti in classifica verranno ricalcolati automaticamente.
+              Sei sicuro di voler eliminare questa partita?
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setIsDeleteOpen(false)}>Annulla</Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleteMatch.isPending}>
-              {deleteMatch.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Elimina'}
+            <Button variant="destructive" onClick={handleDelete} disabled={isSubmitting}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Elimina'}
             </Button>
           </DialogFooter>
         </DialogContent>
