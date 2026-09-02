@@ -1,10 +1,74 @@
+import { useState, useEffect } from 'react';
 import { Trophy, Star, Users, Activity, Crown } from 'lucide-react';
-import { useGetSummary, useGetStandings } from '@workspace/api-client-react';
 import { Link } from 'wouter';
+import { supabase } from '@/lib/supabase';
+
+interface StandingEntry {
+  participantId: number;
+  name: string;
+  totalScore: number;
+  position: number;
+}
+
+interface SummaryData {
+  appName: string;
+  participantsCount: number;
+  matchesPlayed: number;
+  leaderName: string;
+  leaderScore: number;
+}
 
 export default function Home() {
-  const { data: summary, isLoading: loadingSummary } = useGetSummary();
-  const { data: standings, isLoading: loadingStandings } = useGetStandings();
+  const [summary, setSummary] = useState<SummaryData | null>(null);
+  const [standings, setStandings] = useState<StandingEntry[]>([]);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+  const [loadingStandings, setLoadingStandings] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      setLoadingSummary(true);
+      setLoadingStandings(true);
+
+      // 1. Carica la classifica dalla VISTA 'standings' creata su Supabase
+      const { data: standingsData, error: standingsError } = await supabase
+        .from('standings')
+        .select('*');
+
+      // 2. Carica il conteggio delle partite giocate
+      const { count: matchesCount } = await supabase
+        .from('matches')
+        .select('*', { count: 'exact', head: true });
+
+      let formattedStandings: StandingEntry[] = [];
+
+      if (!standingsError && standingsData) {
+        formattedStandings = standingsData.map((row: any, index: number) => ({
+          participantId: row.participant_id,
+          name: row.participant_name,
+          totalScore: row.total_points || 0,
+          position: index + 1,
+        }));
+      }
+
+      setStandings(formattedStandings);
+      setLoadingStandings(false);
+
+      // 3. Calcola il riepilogo
+      const leader = formattedStandings.length > 0 ? formattedStandings[0] : null;
+
+      setSummary({
+        appName: 'Championsito ST 26',
+        participantsCount: formattedStandings.length,
+        matchesPlayed: matchesCount || 0,
+        leaderName: leader ? leader.name : 'Nessuno',
+        leaderScore: leader ? leader.totalScore : 0,
+      });
+
+      setLoadingSummary(false);
+    }
+
+    fetchData();
+  }, []);
 
   return (
     <div className="container mx-auto px-4 py-8 md:py-12 space-y-12">
@@ -113,7 +177,7 @@ export default function Home() {
                       <td className="p-4"><div className="h-6 w-12 bg-white/10 rounded animate-pulse ml-auto" /></td>
                     </tr>
                   ))
-                ) : standings?.slice(0, 5).map((entry) => (
+                ) : standings.slice(0, 5).map((entry) => (
                   <tr key={entry.participantId} className="border-b border-white/5 hover:bg-white/5 transition-colors">
                     <td className="p-4 text-center font-bold">
                       {entry.position === 1 ? (
@@ -131,7 +195,7 @@ export default function Home() {
                   </tr>
                 ))}
                 
-                {standings?.length === 0 && (
+                {!loadingStandings && standings.length === 0 && (
                   <tr>
                     <td colSpan={3} className="p-8 text-center text-muted-foreground">
                       Nessun partecipante ancora in classifica.
