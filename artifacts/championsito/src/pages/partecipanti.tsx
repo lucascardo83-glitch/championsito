@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Users, Loader2 } from 'lucide-react';
+import { Users, Loader2, Trophy } from 'lucide-react';
 
 interface Team {
   id: number;
   name: string;
   tier: number;
   points: number;
+  is_winner?: boolean;
 }
 
 interface ParticipantWithTeams {
@@ -24,15 +25,14 @@ export default function PartecipantiPage() {
     async function fetchData() {
       setLoading(true);
 
-      // Recupera squadre, partite, partecipanti e associazioni da Supabase
       const { data: teamsData } = await supabase.from('teams').select('*').order('tier').order('name');
       const { data: matchesData } = await supabase.from('matches').select('*');
       const { data: participantsData } = await supabase.from('participants').select('*').order('name');
       const { data: linksData } = await supabase.from('participant_teams').select('*');
 
-      // Calcola i punti guadagnati da ciascuna squadra
+      // Calcola i punti guadagnati da ciascuna squadra (+5 punti extra se è vincitrice)
       const teamsWithPoints = (teamsData || []).map((t) => {
-        let pts = 0;
+        let pts = t.is_winner ? 5 : 0;
         (matchesData || []).forEach((m) => {
           if (m.home_team_id === t.id) {
             if (m.home_goals > m.away_goals) pts += t.tier * 2;
@@ -45,7 +45,6 @@ export default function PartecipantiPage() {
         return { ...t, points: pts };
       });
 
-      // Associa le squadre e calcola il totale per ogni partecipante
       if (participantsData) {
         const formatted = participantsData.map((p) => {
           const pTeamIds = linksData?.filter((l) => l.participant_id === p.id).map((l) => l.team_id) || [];
@@ -93,7 +92,15 @@ export default function PartecipantiPage() {
                 <div className="flex flex-wrap gap-1.5">
                   {p.teams.length > 0 ? (
                     p.teams.map((t) => (
-                      <span key={t.id} className="text-xs bg-white/5 border border-white/10 px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
+                      <span
+                        key={t.id}
+                        className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1 border ${
+                          t.is_winner
+                            ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300'
+                            : 'bg-white/5 border-white/10'
+                        }`}
+                      >
+                        {t.is_winner && <Trophy className="h-3 w-3 text-yellow-400 inline" />}
                         <span>{t.name}</span>
                         <span className="opacity-50 text-[10px]">(F{t.tier})</span>
                         <span className="text-primary font-bold ml-1">+{t.points}</span>
