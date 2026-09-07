@@ -1,111 +1,80 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { useToast } from '@/hooks/use-toast';
-import { Loader2, Plus, Trash2 } from 'lucide-react';
+import { Trophy, Loader2 } from 'lucide-react';
 
 interface Team {
-  id?: number;
+  id: number;
   name: string;
   tier: number;
+  is_winner?: boolean;
 }
 
 export function TeamsTab() {
   const [teams, setTeams] = useState<Team[]>([]);
-  const [newTeamName, setNewTeamName] = useState('');
-  const [selectedTier, setSelectedTier] = useState<number>(1);
-  const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
-
-  // Carica le squadre da Supabase all'avvio
-  const fetchTeams = async () => {
-    const { data, error } = await supabase
-      .from('teams')
-      .select('*')
-      .order('tier', { ascending: true });
-
-    if (error) {
-      toast({ title: 'Errore', description: 'Impossibile caricare le squadre.', variant: 'destructive' });
-    } else {
-      setTeams(data || []);
-    }
-  };
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchTeams();
   }, []);
 
-  // Salva una nuova squadra su Supabase
-  const handleAddTeam = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTeamName.trim()) return;
-
+  async function fetchTeams() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('teams')
-      .insert([{ name: newTeamName.trim(), tier: selectedTier }])
-      .select();
-
+    const { data } = await supabase.from('teams').select('*').order('tier').order('name');
+    if (data) setTeams(data);
     setLoading(false);
+  }
 
-    if (error) {
-      toast({ title: 'Errore', description: 'Salvataggio non riuscito.', variant: 'destructive' });
-    } else {
-      toast({ title: 'Successo', description: 'Squadra salvata correttamente!' });
-      setNewTeamName('');
-      if (data) setTeams([...teams, ...data]);
+  async function toggleWinner(teamId: number, currentStatus: boolean | undefined) {
+    const newStatus = !currentStatus;
+
+    // Se stiamo segnando una nuova vincitrice, azzeriamo prima tutte le altre
+    if (newStatus) {
+      await supabase.from('teams').update({ is_winner: false }).neq('id', 0);
     }
-  };
 
-  // Elimina una squadra da Supabase
-  const handleDeleteTeam = async (id: number) => {
-    const { error } = await supabase.from('teams').delete().eq('id', id);
+    // Aggiorna la squadra selezionata
+    await supabase.from('teams').update({ is_winner: newStatus }).eq('id', teamId);
+    
+    fetchTeams();
+  }
 
-    if (error) {
-      toast({ title: 'Errore', description: 'Impossibile eliminare la squadra.', variant: 'destructive' });
-    } else {
-      setTeams(teams.filter((t) => t.id !== id));
-      toast({ title: 'Eliminata', description: 'Squadra rimossa.' });
-    }
-  };
+  if (loading) {
+    return (
+      <div className="flex justify-center p-12">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <form onSubmit={handleAddTeam} className="flex flex-col sm:flex-row gap-4">
-        <Input
-          placeholder="Nome squadra..."
-          value={newTeamName}
-          onChange={(e) => setNewTeamName(e.target.value)}
-          className="bg-background/50"
-        />
-        <select
-          value={selectedTier}
-          onChange={(e) => setSelectedTier(Number(e.target.value))}
-          className="p-2 rounded-md bg-background border border-input text-sm"
-        >
-          <option value={1}>Fascia 1</option>
-          <option value={2}>Fascia 2</option>
-          <option value={3}>Fascia 3</option>
-          <option value={4}>Fascia 4</option>
-        </select>
-        <Button type="submit" disabled={loading || !newTeamName.trim()}>
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 mr-2" /> Salva</>}
-        </Button>
-      </form>
-
+      <h2 className="text-xl font-bold">Gestione Squadre e Vincitore</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {teams.map((team) => (
-          <div key={team.id} className="flex justify-between items-center p-3 border rounded-lg bg-card/40">
+        {teams.map((t) => (
+          <div
+            key={t.id}
+            className={`p-4 rounded-xl border flex items-center justify-between transition-all ${
+              t.is_winner
+                ? 'bg-yellow-500/10 border-yellow-500/50'
+                : 'bg-white/5 border-white/10'
+            }`}
+          >
             <div>
-              <span className="font-bold">{team.name}</span>
-              <span className="ml-2 text-xs text-muted-foreground">(Fascia {team.tier})</span>
+              <p className="font-bold">{t.name}</p>
+              <p className="text-xs text-muted-foreground">Fascia {t.tier}</p>
             </div>
-            {team.id && (
-              <Button variant="ghost" size="icon" onClick={() => handleDeleteTeam(team.id!)}>
-                <Trash2 className="h-4 w-4 text-red-500" />
-              </Button>
-            )}
+
+            <button
+              onClick={() => toggleWinner(t.id, t.is_winner)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                t.is_winner
+                  ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/20'
+                  : 'bg-white/10 hover:bg-white/20 text-white'
+              }`}
+            >
+              <Trophy className="h-3.5 w-3.5" />
+              {t.is_winner ? 'Vincitrice (+5 pts)' : 'Segna come Vincitrice'}
+            </button>
           </div>
         ))}
       </div>
